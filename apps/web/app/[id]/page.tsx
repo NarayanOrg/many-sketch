@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation"
 import { onAuthStateChanged, type User } from "firebase/auth"
 import { auth } from "@/firebase/firebase"
 import { getSocket } from "@/lib/socket"
+import type { Socket } from "socket.io-client"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -57,7 +58,7 @@ export default function LobbyPage() {
     if (!user || !lobbyId) return
 
     let cancelled = false
-    let socket: ReturnType<typeof getSocket> | null = null
+    let socket: Socket | null = null
 
     async function join() {
       try {
@@ -208,12 +209,15 @@ export default function LobbyPage() {
           <div className="mb-1 flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{lobby.name || "Lobby"}</h1>
             <Badge variant="secondary">
-              {lobby.status === "waiting" ? "Waiting for players" : "Starting..."}
+              {lobby.status === "waiting"
+                ? "Waiting for players"
+                : "Starting..."}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
             {lobby.chatEnabled ? "Chat enabled" : "Chat disabled"}
-            {!isFull && ` · ${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} left`}
+            {!isFull &&
+              ` · ${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} left`}
           </p>
         </div>
 
@@ -224,7 +228,11 @@ export default function LobbyPage() {
             onClick={handleShare}
             aria-label="Share lobby"
           >
-            {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
           </Button>
           {isHost && (
             <Button
@@ -251,7 +259,9 @@ export default function LobbyPage() {
             <li key={p.userId} className="flex items-center gap-3">
               <Avatar className="h-9 w-9">
                 <AvatarImage src={stickerImageUrl(p.stickerId)} />
-                <AvatarFallback>{p.username.charAt(0).toUpperCase()}</AvatarFallback>
+                <AvatarFallback>
+                  {p.username.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
               <span className="text-sm font-medium">{p.username}</span>
               {p.userId === lobby.hostId && (
@@ -266,7 +276,8 @@ export default function LobbyPage() {
         {!isFull && (
           <div className="mt-5 flex items-center gap-2 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Waiting for more players — drawing starts automatically once the lobby is full.
+            Waiting for more players — drawing starts automatically once the
+            lobby is full.
           </div>
         )}
       </div>
@@ -285,10 +296,17 @@ export default function LobbyPage() {
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setCancelDialogOpen(false)}
+            >
               Keep lobby
             </Button>
-            <Button onClick={handleCancel} className="ml-2" disabled={cancelling}>
+            <Button
+              onClick={handleCancel}
+              className="ml-2"
+              disabled={cancelling}
+            >
               {cancelling ? "Cancelling..." : "Cancel lobby"}
             </Button>
           </DialogFooter>
