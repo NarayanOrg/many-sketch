@@ -196,6 +196,7 @@ io.on("connection", (socket: AuthedSocket) => {
               name: string;
               maxPlayers: number;
               duration: number;
+              startedAt: number | null;
               strokes: Stroke[];
               chatEnabled: boolean;
               status: "waiting" | "active" | "finished";
@@ -367,8 +368,8 @@ io.on("connection", (socket: AuthedSocket) => {
   // ----------------------------------------------------------------
   socket.on("disconnect", () => {
     for (const room of roomManager.listActive()) {
+      const wasWaiting = room.status === "waiting"
       if (room.participants.has(uid)) {
-        const wasWaiting = room.status === "waiting"
         roomManager.removeParticipantBySocket(room.id, socket.id)
         socket.to(room.id).emit("lobby:participantLeft", { userId: uid })
       }
