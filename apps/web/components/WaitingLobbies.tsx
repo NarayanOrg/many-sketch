@@ -67,15 +67,16 @@ export default function WaitingLobbies() {
 
     async function subscribe() {
       try {
-        socket = await getSocket()
+        const sock = await getSocket()
+        socket = sock
         if (!mounted) return
 
-        socket.on("lobbies:waitingUpdated", (updated: WaitingLobby[]) => {
+        sock.on("lobbies:waitingUpdated", (updated: WaitingLobby[]) => {
           setLobbies(updated)
         })
 
         const response = await new Promise<any>((resolve) => {
-          socket.emit("lobbies:subscribe", resolve)
+          sock.emit("lobbies:subscribe", resolve)
         })
 
         if (response?.lobbies) {
@@ -129,7 +130,7 @@ export default function WaitingLobbies() {
           No waiting lobbies are available right now.
         </div>
       ) : (
-        <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {lobbies.map((lobby) => (
             <div
               key={lobby.id}
