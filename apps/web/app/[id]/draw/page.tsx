@@ -544,6 +544,37 @@ export default function DrawPage() {
           </div>
         </div>
 
+        <div className="rounded-xl border border-border bg-background p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold">Brush settings</p>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="color">Color</Label>
+                <input
+                  id="color"
+                  type="color"
+                  value={color}
+                  onChange={(event) => setColor(event.target.value)}
+                  className="h-10 w-full rounded-md border border-border bg-white p-0"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="width">Stroke width</Label>
+                <input
+                  id="width"
+                  type="range"
+                  min={1}
+                  max={24}
+                  value={width}
+                  onChange={(event) => setWidth(Number(event.target.value))}
+                  className="w-full"
+                />
+                <p className="text-sm text-muted-foreground">{width}px</p>
+              </div>
+            </div>
+          </div>
+
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-background p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -638,37 +669,6 @@ export default function DrawPage() {
               Chat is disabled for this lobby.
             </div>
           )}
-
-          <div className="rounded-xl border border-border bg-background p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">Brush settings</p>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="color">Color</Label>
-                <input
-                  id="color"
-                  type="color"
-                  value={color}
-                  onChange={(event) => setColor(event.target.value)}
-                  className="h-10 w-full rounded-md border border-border bg-white p-0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="width">Stroke width</Label>
-                <input
-                  id="width"
-                  type="range"
-                  min={1}
-                  max={24}
-                  value={width}
-                  onChange={(event) => setWidth(Number(event.target.value))}
-                  className="w-full"
-                />
-                <p className="text-sm text-muted-foreground">{width}px</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
