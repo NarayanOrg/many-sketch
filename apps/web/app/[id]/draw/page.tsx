@@ -307,7 +307,7 @@ export default function DrawPage() {
       window.removeEventListener("scroll", update)
       window.removeEventListener("resize", update)
     }
-  }, [])
+  }, [loading])
 
   const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isReady || !user) return
