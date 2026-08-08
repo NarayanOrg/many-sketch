@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import GalleryActions from "@/components/GalleryActions"
 
@@ -63,6 +63,7 @@ export default function GalleryPage() {
   }, [])
 
   return (
+    <Suspense fallback={<GalleryLoading />}>
     <div className="mx-auto max-w-6xl px-4 py-12">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
@@ -128,5 +129,15 @@ export default function GalleryPage() {
         </div>
       )}
     </div>
+    </Suspense>
   )
+}
+
+
+function GalleryLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      Loading gallery...
+    </div>
+  );
 }
