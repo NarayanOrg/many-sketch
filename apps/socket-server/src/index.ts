@@ -325,6 +325,7 @@ io.on("connection", (socket: AuthedSocket) => {
     "draw:cursor",
     (payload: { lobbyId: string; x: number; y: number; color: string }) => {
       const room = roomManager.get(payload.lobbyId);
+      console.log("cursor from", uid, "room status:", room?.status);
       if (!room || room.status !== "active") return;
       if (!room.participants.has(uid)) return;
 

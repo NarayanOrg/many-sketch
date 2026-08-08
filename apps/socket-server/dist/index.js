@@ -53,7 +53,7 @@ app.get("/lobbies/:id/thumbnail", async (req, res) => {
 });
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-    cors: { origin: CLIENT_ORIGINS },
+    cors: { origin: CLIENT_ORIGINS, methods: ["GET", "POST"], credentials: true },
 });
 function getWaitingLobbySnapshot() {
     return roomManager.listWaiting().map((room) => ({
@@ -242,6 +242,7 @@ io.on("connection", (socket) => {
     });
     socket.on("draw:cursor", (payload) => {
         const room = roomManager.get(payload.lobbyId);
+        console.log("cursor from", uid, "room status:", room?.status);
         if (!room || room.status !== "active")
             return;
         if (!room.participants.has(uid))
