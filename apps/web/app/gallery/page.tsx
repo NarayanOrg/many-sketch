@@ -17,6 +17,7 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [origin, setOrigin] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -50,6 +51,16 @@ export default function GalleryPage() {
       target.scrollIntoView({ behavior: "smooth", block: "center" })
     }
   }, [focusedLobbyId, items])
+
+  // capture window origin on client to avoid using `window` during render/prerender
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOrigin(window.location.origin)
+    } catch (e) {
+      setOrigin(null)
+    }
+  }, [])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12">
@@ -109,7 +120,7 @@ export default function GalleryPage() {
                 <GalleryActions
                   title={item.title || "drawing"}
                   imageUrl={item.thumbnailUrl}
-                  shareUrl={`${window.location.origin}/gallery/${item.id}`}
+                  shareUrl={origin ? `${origin}/gallery/${item.id}` : ""}
                 />
               </div>
             </div>
