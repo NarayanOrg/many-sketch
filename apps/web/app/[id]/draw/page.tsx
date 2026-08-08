@@ -164,17 +164,12 @@ export default function DrawPage() {
         socket.on("draw:stroke", handleIncomingStroke)
         socket.on("chat:message", handleIncomingMessage)
         socket.on("draw:cursor", (c: CursorPayload) => {
-          setCursors((prev) => ({
-            ...prev,
-            [c.userId]: {
-              x: c.x,
-              y: c.y,
-              color: c.color,
-              username: c.username,
-              stickerId: c.stickerId,
-              lastSeen: Date.now(),
-            },
-          }))
+          console.log("cursor payload received on client:", c)
+          setCursors((prev) => {
+            const next = { ...prev, [c.userId]: { x: c.x, y: c.y, color: c.color, username: c.username, stickerId: c.stickerId, lastSeen: Date.now() } }
+            console.log("cursors state now:", next)
+            return next
+          })
         })
 
         socket.on("lobby:started", (payload: { startedAt?: number }) => {
