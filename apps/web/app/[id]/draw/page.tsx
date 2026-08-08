@@ -167,7 +167,7 @@ export default function DrawPage() {
           console.log("cursor payload received on client:", c)
           setCursors((prev) => {
             const next = { ...prev, [c.userId]: { x: c.x, y: c.y, color: c.color, username: c.username, stickerId: c.stickerId, lastSeen: Date.now() } }
-            console.log("cursors state now:", next)
+            // console.log("cursors state now:", next)
             return next
           })
         })
@@ -508,6 +508,7 @@ export default function DrawPage() {
               // hide stale cursors using stable `now` state
               if (now - c.lastSeen > 5000) return null
               const rect = canvasRect
+             console.log("canvasRect:", canvasRect, "cursors:", cursors)
               const left = rect ? (c.x / CANVAS_WIDTH) * rect.width : 0
               const top = rect ? (c.y / CANVAS_HEIGHT) * rect.height : 0
               return (
