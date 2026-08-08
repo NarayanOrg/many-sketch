@@ -1,0 +1,5 @@
+/web/.env
+/web/node_modules
+/socket-server/node_modules
+/web/serviceAccountKey.json
+/socket-server/.env
