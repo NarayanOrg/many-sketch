@@ -6,7 +6,6 @@ import { auth } from "@/firebase/firebase"
 import { getSocket } from "@/lib/socket"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Loader2, Send, ArrowLeft } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -579,14 +578,11 @@ export default function DrawPage() {
   // previously happened because the old check only tested `undefined`.
   if (loading || user === undefined || user === null) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-12">
-        <div className="mb-4 h-10 w-64 rounded-lg bg-muted" />
-        <div className="grid gap-4 lg:grid-cols-[1.8fr_0.8fr]">
-          <div className="rounded-xl bg-muted" style={{ height: 420 }} />
-          <div className="space-y-4">
-            <div className="h-32 rounded-xl bg-muted" />
-            <div className="h-52 rounded-xl bg-muted" />
-          </div>
+      <div className="flex h-dvh flex-col bg-[#171310] text-white">
+        <div className="h-14 border-b border-white/10 bg-[#1f1a15]" />
+        <div className="flex min-h-0 flex-1 gap-3 p-3">
+          <div className="min-w-0 flex-1 animate-pulse rounded-2xl bg-white/5" />
+          <div className="w-[320px] animate-pulse rounded-2xl bg-white/5" />
         </div>
       </div>
     )
@@ -594,8 +590,8 @@ export default function DrawPage() {
 
   if (error) {
     return (
-      <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
-        <p className="mb-4 text-muted-foreground">{error}</p>
+      <div className="flex h-dvh flex-col items-center justify-center bg-[#171310] px-4 text-center text-white">
+        <p className="mb-4 text-white/60">{error}</p>
         <Button onClick={() => router.push(`/${lobbyId}`)}>
           Back to lobby
         </Button>
@@ -603,67 +599,123 @@ export default function DrawPage() {
     )
   }
 
+  const swatches = ["#111827", "#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ffffff"]
+  const strokeSizes = [3, 6, 10, 16]
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold">
-                {lobbyName || "Live draw"}
-              </h1>
-              <Badge variant="secondary">Live</Badge>
-              {secondsLeft !== null && (
-                <div
-                  className={`ml-3 rounded-md px-2 py-1 text-sm font-medium ${secondsLeft <= 10 ? "text-destructive" : "text-muted-foreground"}`}
-                >
-                  {Math.floor(secondsLeft / 60)
-                    .toString()
-                    .padStart(2, "0")}
-                  :{(secondsLeft % 60).toString().padStart(2, "0")}
-                </div>
-              )}
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Draw on the shared canvas with your lobby.
-          </p>
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#171310] text-white">
+      {/* Top bar — lobby identity, timer, and brush settings all in one reach zone */}
+      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-white/10 bg-[#1f1a15] px-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-white/60 hover:bg-white/10 hover:text-white"
+          onClick={() => router.push(`/${lobbyId}`)}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
+          </span>
+          <h1 className="truncate text-sm font-semibold tracking-tight">
+            {lobbyName || "Live draw"}
+          </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => router.push(`/${lobbyId}`)}
+        {secondsLeft !== null && (
+          <div
+            className={`shrink-0 rounded-md px-2 py-0.5 font-mono text-sm font-medium tabular-nums ${
+              secondsLeft <= 10 ? "bg-red-500/15 text-red-400" : "bg-white/5 text-white/70"
+            }`}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to lobby
-          </Button>
-          <Badge variant="outline">
-            {participants.length} player{participants.length === 1 ? "" : "s"}
-          </Badge>
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.8fr_0.8fr]">
-        <div className="rounded-xl border border-border bg-background p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Canvas
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Drag or draw to add strokes to the shared board.
-              </p>
-            </div>
-            <Badge variant="outline">{participants.length} players</Badge>
+            {Math.floor(secondsLeft / 60)
+              .toString()
+              .padStart(2, "0")}
+            :{(secondsLeft % 60).toString().padStart(2, "0")}
           </div>
-          <div className="relative overflow-hidden rounded-xl border border-border bg-white">
+        )}
+
+        <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />
+
+        {/* Brush settings — inline, compact, always visible */}
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
+          <div className="flex shrink-0 items-center gap-1.5">
+            {swatches.map((swatch) => (
+              <button
+                key={swatch}
+                type="button"
+                onClick={() => setColor(swatch)}
+                aria-label={`Use color ${swatch}`}
+                className={`h-6 w-6 shrink-0 rounded-full ring-offset-2 ring-offset-[#1f1a15] transition ${
+                  color.toLowerCase() === swatch.toLowerCase()
+                    ? "ring-2 ring-orange-500"
+                    : "ring-1 ring-white/15 hover:ring-white/40"
+                }`}
+                style={{ background: swatch }}
+              />
+            ))}
+            <label className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 hover:ring-white/40">
+              <span
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444)",
+                }}
+              />
+              <input
+                type="color"
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Custom color"
+              />
+            </label>
+          </div>
+
+          <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            {strokeSizes.map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => setWidth(size)}
+                aria-label={`Stroke width ${size}px`}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition ${
+                  width === size ? "bg-white/15" : "hover:bg-white/5"
+                }`}
+              >
+                <span
+                  className="rounded-full bg-white"
+                  style={{ width: Math.min(size, 14), height: Math.min(size, 14) }}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Badge
+          variant="outline"
+          className="shrink-0 border-white/15 bg-white/5 text-white/70"
+        >
+          {participants.length} player{participants.length === 1 ? "" : "s"}
+        </Badge>
+      </header>
+
+      {/* Body — canvas fills the left, chat column fills the right. No page scroll. */}
+      <div className="flex min-h-0 flex-1 gap-3 p-3">
+        {/* Canvas column */}
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0e0c0a]">
+          <div className="relative h-full w-full overflow-hidden bg-white">
             <canvas
               ref={canvasRef}
               width={CANVAS_WIDTH}
               height={CANVAS_HEIGHT}
-              className="w-full touch-none bg-white"
+              className="h-full w-full touch-none bg-white"
+              style={{ objectFit: "contain" }}
               onPointerDown={startDrawing}
               onPointerMove={(e) => {
                 continueDrawing(e)
@@ -693,18 +745,18 @@ export default function DrawPage() {
                     }}
                     className="pointer-events-none absolute z-50"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 rounded-full bg-black/80 py-1 pl-1 pr-2.5 shadow-lg backdrop-blur-sm">
                       <img
                         src={stickerImageUrl(c.stickerId)}
                         alt="sticker"
-                        className="h-6 w-6 rounded-full"
+                        className="h-5 w-5 rounded-full"
                       />
-                      <div
-                        className={`rounded-full px-2 py-1 text-xs font-medium`}
-                        style={{ background: c.color, color: "#fff" }}
+                      <span
+                        className="text-xs font-medium"
+                        style={{ color: c.color }}
                       >
                         {c.username}
-                      </div>
+                      </span>
                     </div>
                   </div>
                 )
@@ -712,131 +764,102 @@ export default function DrawPage() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-background p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">Players</p>
-              <Badge variant="outline">{participants.length}</Badge>
-            </div>
-            <div className="space-y-3">
+        {/* Right column — roster strip + chat, fixed width, own scroll only */}
+        <div className="flex w-[320px] shrink-0 flex-col gap-3 overflow-hidden">
+          {/* Roster — compact horizontal strip of avatars, not a tall list */}
+          <div className="shrink-0 rounded-2xl border border-white/10 bg-[#1f1a15] p-2.5">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
               {participants.map((participant) => (
                 <div
                   key={participant.userId}
-                  className="flex items-center gap-3 rounded-lg border border-border p-3"
+                  className="group relative flex shrink-0 items-center"
+                  title={participant.username}
                 >
-                  <Avatar className="h-9 w-9">
+                  <Avatar className="h-8 w-8 ring-2 ring-[#1f1a15]">
                     <AvatarImage src={stickerImageUrl(participant.stickerId)} />
-                    <AvatarFallback>
+                    <AvatarFallback className="bg-white/10 text-xs text-white">
                       {participant.username.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {participant.username}
-                    </p>
-                  </div>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Chat — fills remaining height, streamer-style rows */}
           {chatEnabled ? (
-            <div className="rounded-xl border border-border bg-background p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold">Lobby chat</p>
-                <Badge variant="outline">{messages.length}</Badge>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1f1a15]">
+              <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/50">
+                  Chat
+                </p>
+                <span className="text-xs text-white/30">{messages.length}</span>
               </div>
-              <div className="mb-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border border-border bg-white p-3">
+
+              <div className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
                 {messages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No messages yet.
+                  <p className="pt-4 text-center text-xs text-white/30">
+                    Say something to your lobby.
                   </p>
                 ) : (
-                  messages.map((messageItem, index) => (
-                    <div
-                      key={`${messageItem.userId}-${messageItem.createdAt}-${index}`}
-                      className="flex items-start gap-3 rounded-lg bg-muted/50 p-2"
-                    >
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
+                  messages.map((messageItem, index) => {
+                    const isMe = messageItem.userId === user.uid
+                    return (
+                      <div
+                        key={`${messageItem.userId}-${messageItem.createdAt}-${index}`}
+                        className="flex items-start gap-1.5 rounded-md px-1.5 py-1 leading-snug hover:bg-white/3"
+                      >
+                        <img
                           src={stickerImageUrl(messageItem.stickerId)}
+                          alt=""
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded-full"
                         />
-                        <AvatarFallback>
-                          {messageItem.username.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-semibold">
-                          {messageItem.username}
-                        </p>
-                        <p className="text-sm leading-snug text-muted-foreground">
-                          {messageItem.body}
+                        <p className="min-w-0 wrap-break-word text-[13px]">
+                          <span
+                            className={`font-semibold ${isMe ? "text-orange-400" : "text-sky-400"}`}
+                          >
+                            {messageItem.username}
+                          </span>
+                          <span className="text-white/40">{"  "}</span>
+                          <span className="text-white/85">{messageItem.body}</span>
                         </p>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
-              <form onSubmit={handleSendMessage} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="chat-input">Send a message</Label>
-                  <Input
-                    id="chat-input"
-                    value={message}
-                    onChange={(event) => setMessage(event.target.value)}
-                    placeholder="Type a quick message"
-                  />
-                </div>
+
+              <form
+                onSubmit={handleSendMessage}
+                className="flex shrink-0 items-center gap-2 border-t border-white/10 p-2.5"
+              >
+                <Input
+                  id="chat-input"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="Send a message"
+                  maxLength={500}
+                  className="h-8 border-white/10 bg-white/5 text-[13px] text-white placeholder:text-white/30 focus-visible:ring-orange-500"
+                />
                 <Button
                   type="submit"
-                  className="w-full"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 bg-orange-600 hover:bg-orange-500"
                   disabled={!message.trim() || isSending}
                 >
                   {isSending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <Send className="mr-2 h-4 w-4" />
+                    <Send className="h-3.5 w-3.5" />
                   )}
-                  Send
                 </Button>
               </form>
             </div>
           ) : (
-            <div className="rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">
+            <div className="flex flex-1 items-center justify-center rounded-2xl border border-white/10 bg-[#1f1a15] p-4 text-center text-xs text-white/40">
               Chat is disabled for this lobby.
             </div>
           )}
-
-          <div className="rounded-xl border border-border bg-background p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">Brush settings</p>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="color">Color</Label>
-                <input
-                  id="color"
-                  type="color"
-                  value={color}
-                  onChange={(event) => setColor(event.target.value)}
-                  className="h-10 w-full rounded-md border border-border bg-white p-0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="width">Stroke width</Label>
-                <input
-                  id="width"
-                  type="range"
-                  min={1}
-                  max={24}
-                  value={width}
-                  onChange={(event) => setWidth(Number(event.target.value))}
-                  className="w-full"
-                />
-                <p className="text-sm text-muted-foreground">{width}px</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

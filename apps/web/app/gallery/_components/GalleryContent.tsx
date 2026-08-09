@@ -120,7 +120,7 @@ export function GalleryContent() {
                 <GalleryActions
                   title={item.title || "drawing"}
                   imageUrl={item.thumbnailUrl}
-                  shareUrl={origin ? `${origin}/gallery/${item.id}` : ""}
+                  shareUrl={origin ? `${origin}/lobbies/${item.id}/thumbnail` : ""}
                 />
               </div>
             </div>
