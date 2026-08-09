@@ -188,7 +188,7 @@ export default function LobbyPage() {
     )
   }
 
-  if(user === undefined){
+  if(user === undefined || user === null){
     router.replace('/')
     return null
   }

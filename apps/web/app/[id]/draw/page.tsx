@@ -634,7 +634,7 @@ export default function DrawPage() {
   // FIX: also treat `user === null` (resolved logged-out) as a loading/
   // redirect state rather than falling through to the full render, which
   // previously happened because the old check only tested `undefined`.
-  if (loading || user === undefined || user === null) {
+  if (loading) {
     return (
       <div className="flex h-dvh flex-col bg-background text-foreground">
         <div className="h-14 shrink-0 border-b border-border bg-background" />
@@ -644,6 +644,11 @@ export default function DrawPage() {
         </div>
       </div>
     )
+  }
+
+  if(user === undefined || user === null){
+    router.replace('/')
+    return null
   }
 
   if (error) {
