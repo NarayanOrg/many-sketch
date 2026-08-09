@@ -20,6 +20,25 @@ interface Stroke {
   width: number
 }
 
+interface StrokeStartPayload {
+  strokeId: string
+  userId: string
+  color: string
+  width: number
+  point: { x: number; y: number }
+}
+
+interface StrokePointPayload {
+  strokeId: string
+  userId: string
+  point: { x: number; y: number }
+}
+
+interface StrokeEndPayload {
+  strokeId: string
+  userId: string
+}
+
 interface Participant {
   userId: string
   username: string
@@ -96,8 +115,15 @@ export default function DrawPage() {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
   const socketRef = React.useRef<Socket | null>(null)
   const currentStrokeRef = React.useRef<Stroke | null>(null)
+  const currentStrokeIdRef = React.useRef<string | null>(null)
   const drawingRef = React.useRef(false)
   const lastPointRef = React.useRef<{ x: number; y: number } | null>(null)
+  // Tracks the last point drawn for each in-progress *remote* stroke, keyed
+  // by strokeId, so incoming points can be connected with a line segment
+  // instead of waiting for the whole stroke to arrive at the end.
+  const remoteStrokesRef = React.useRef<
+    Record<string, { color: string; width: number; lastPoint: { x: number; y: number } }>
+  >({})
 
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, setUser)
@@ -148,12 +174,72 @@ export default function DrawPage() {
     ctx.stroke()
   }, [])
 
+  // Draws a single segment between two points — used to render remote
+  // strokes incrementally as points stream in, instead of waiting for
+  // the full stroke on strokeEnd.
+  const drawSegment = React.useCallback(
+    (
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+      color: string,
+      width: number
+    ) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+
+      ctx.strokeStyle = color
+      ctx.lineWidth = width
+      ctx.lineCap = "round"
+      ctx.beginPath()
+      ctx.moveTo(from.x, from.y)
+      ctx.lineTo(to.x, to.y)
+      ctx.stroke()
+    },
+    []
+  )
+
+  // Kept for replaying persisted strokes on join (response.strokes) and
+  // as a fallback if a strokeEnd arrives without a matching strokeStart
+  // (e.g. missed due to a reconnect mid-stroke).
   const handleIncomingStroke = React.useCallback(
     (stroke: Stroke) => {
       drawStroke(stroke)
     },
     [drawStroke]
   )
+
+  const handleStrokeStart = React.useCallback((payload: StrokeStartPayload) => {
+    remoteStrokesRef.current[payload.strokeId] = {
+      color: payload.color,
+      width: payload.width,
+      lastPoint: payload.point,
+    }
+  }, [])
+
+  const handleStrokePoint = React.useCallback(
+    (payload: StrokePointPayload) => {
+      const existing = remoteStrokesRef.current[payload.strokeId]
+      if (!existing) {
+        // strokeStart was missed (e.g. joined mid-stroke) — start fresh
+        // from this point so at least subsequent segments render.
+        remoteStrokesRef.current[payload.strokeId] = {
+          color: DEFAULT_COLOR,
+          width: DEFAULT_WIDTH,
+          lastPoint: payload.point,
+        }
+        return
+      }
+      drawSegment(existing.lastPoint, payload.point, existing.color, existing.width)
+      existing.lastPoint = payload.point
+    },
+    [drawSegment]
+  )
+
+  const handleStrokeEnd = React.useCallback((payload: StrokeEndPayload) => {
+    delete remoteStrokesRef.current[payload.strokeId]
+  }, [])
 
   const handleIncomingMessage = React.useCallback((incoming: ChatMessage) => {
     setMessages((prev) => [...prev, incoming])
@@ -174,6 +260,9 @@ export default function DrawPage() {
         socketRef.current = socket
 
         socket.on("draw:stroke", handleIncomingStroke)
+        socket.on("draw:strokeStart", handleStrokeStart)
+        socket.on("draw:point", handleStrokePoint)
+        socket.on("draw:strokeEnd", handleStrokeEnd)
         socket.on("chat:message", handleIncomingMessage)
         socket.on("draw:cursor", (c: CursorPayload) => {
           setCursors((prev) => ({
@@ -278,6 +367,9 @@ export default function DrawPage() {
       cancelled = true
       if (clientSocket) {
         clientSocket.off("draw:stroke", handleIncomingStroke)
+        clientSocket.off("draw:strokeStart", handleStrokeStart)
+        clientSocket.off("draw:point", handleStrokePoint)
+        clientSocket.off("draw:strokeEnd", handleStrokeEnd)
         clientSocket.off("chat:message", handleIncomingMessage)
         clientSocket.off("lobby:participantJoined")
         clientSocket.off("lobby:participantLeft")
@@ -293,6 +385,9 @@ export default function DrawPage() {
     drawCanvasBackground,
     drawStroke,
     handleIncomingStroke,
+    handleStrokeStart,
+    handleStrokePoint,
+    handleStrokeEnd,
     handleIncomingMessage,
   ])
 
@@ -351,6 +446,20 @@ export default function DrawPage() {
       color,
       width,
     }
+    const strokeId = `${user.uid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    currentStrokeIdRef.current = strokeId
+
+    // Announce the stroke immediately so other clients can start
+    // rendering segments live, instead of waiting for pointerup.
+    if (socketRef.current) {
+      socketRef.current.emit("draw:strokeStart", {
+        lobbyId,
+        strokeId,
+        color,
+        width,
+        point,
+      })
+    }
   }
 
   const lastEmitRef = React.useRef(0)
@@ -401,6 +510,18 @@ export default function DrawPage() {
     currentStrokeRef.current.points.push(point)
     lastPointRef.current = point
     emitCursor(point)
+
+    // Stream this point to other clients right away so they can draw the
+    // segment live rather than waiting for the stroke to finish. Not
+    // throttled like the cursor emit — every point matters for line
+    // continuity, and pointermove is already coalesced by the browser.
+    if (socketRef.current && currentStrokeIdRef.current) {
+      socketRef.current.emit("draw:point", {
+        lobbyId,
+        strokeId: currentStrokeIdRef.current,
+        point,
+      })
+    }
   }
 
   const stopDrawing = () => {
@@ -409,6 +530,9 @@ export default function DrawPage() {
       return
     }
 
+    // Persist the full stroke (server writes this to storage), and tell
+    // other clients this strokeId is done so they can clear their
+    // in-progress tracking for it.
     if (currentStrokeRef.current.points.length > 1 && socketRef.current) {
       socketRef.current.emit("draw:stroke", {
         lobbyId,
@@ -420,7 +544,15 @@ export default function DrawPage() {
       })
     }
 
+    if (socketRef.current && currentStrokeIdRef.current) {
+      socketRef.current.emit("draw:strokeEnd", {
+        lobbyId,
+        strokeId: currentStrokeIdRef.current,
+      })
+    }
+
     currentStrokeRef.current = null
+    currentStrokeIdRef.current = null
     drawingRef.current = false
     lastPointRef.current = null
   }

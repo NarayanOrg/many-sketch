@@ -325,6 +325,62 @@ io.on("connection", (socket: AuthedSocket) => {
     socket.to(payload.lobbyId).emit("draw:stroke", stroke);
   });
 
+  // ----------------------------------------------------------------
+  // Live stroke streaming — pure relay, no persistence here. The
+  // finished stroke is still stored via "draw:stroke" above on
+  // pointerup; these three events only let other clients render the
+  // stroke incrementally while it's being drawn instead of waiting
+  // for it to finish.
+  // ----------------------------------------------------------------
+  socket.on(
+    "draw:strokeStart",
+    (payload: {
+      lobbyId: string;
+      strokeId: string;
+      color: string;
+      width: number;
+      point: { x: number; y: number };
+    }) => {
+      const room = roomManager.get(payload.lobbyId);
+      if (!room || room.status !== "active") return;
+      if (!room.participants.has(uid)) return;
+
+      socket.to(payload.lobbyId).emit("draw:strokeStart", {
+        strokeId: payload.strokeId,
+        userId: uid,
+        color: payload.color,
+        width: payload.width,
+        point: payload.point,
+      });
+    }
+  );
+
+  socket.on(
+    "draw:point",
+    (payload: { lobbyId: string; strokeId: string; point: { x: number; y: number } }) => {
+      const room = roomManager.get(payload.lobbyId);
+      if (!room || room.status !== "active") return;
+      if (!room.participants.has(uid)) return;
+
+      socket.to(payload.lobbyId).emit("draw:point", {
+        strokeId: payload.strokeId,
+        userId: uid,
+        point: payload.point,
+      });
+    }
+  );
+
+  socket.on("draw:strokeEnd", (payload: { lobbyId: string; strokeId: string }) => {
+    const room = roomManager.get(payload.lobbyId);
+    if (!room || room.status !== "active") return;
+    if (!room.participants.has(uid)) return;
+
+    socket.to(payload.lobbyId).emit("draw:strokeEnd", {
+      strokeId: payload.strokeId,
+      userId: uid,
+    });
+  });
+
   socket.on(
     "draw:cursor",
     (payload: { lobbyId: string; x: number; y: number; color: string }) => {

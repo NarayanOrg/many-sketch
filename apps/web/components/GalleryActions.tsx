@@ -1,7 +1,7 @@
 "use client"
 import React from "react"
 import { Button } from "@/components/ui/button"
-import { Copy, Download, Share2 } from "lucide-react"
+import { Copy, Download, Eye, Share2 } from "lucide-react"
 
 interface GalleryActionsProps {
   title: string
@@ -42,8 +42,8 @@ export default function GalleryActions({
         download={`${title || "drawing"}.png`}
         className="inline-flex w-full items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 sm:w-auto"
       >
-        <Download className="mr-2 h-4 w-4" />
-        Download PNG
+        <Eye className="mr-2 h-4 w-4" />
+        View Image
       </a>
       <Button
         onClick={handleShare}
