@@ -5,9 +5,7 @@ import { onAuthStateChanged, type User } from "firebase/auth"
 import { auth } from "@/firebase/firebase"
 import { getSocket } from "@/lib/socket"
 import type { Socket } from "socket.io-client"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2 } from "lucide-react"
 
 interface WaitingLobby {
   id: string
@@ -75,6 +73,7 @@ export default function WaitingLobbies() {
           setLobbies(updated)
         })
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await new Promise<any>((resolve) => {
           sock.emit("lobbies:subscribe", resolve)
         })

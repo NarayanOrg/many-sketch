@@ -36,5 +36,6 @@ export interface ChatMessage {
   userId: string;
   username: string;
   body: string;
+  stickerId: string;
   createdAt: number;
 }

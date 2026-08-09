@@ -64,6 +64,7 @@ export default function LobbyPage() {
       try {
         socket = await getSocket()
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         socket.emit("lobby:join", { lobbyId }, (res: any) => {
           if (cancelled) return
           if ("error" in res) {
@@ -177,7 +178,7 @@ export default function LobbyPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (user === undefined || (!error && !lobby)) {
+  if ((!error && !lobby)) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12">
         <Skeleton className="mb-4 h-8 w-64" />
@@ -185,6 +186,11 @@ export default function LobbyPage() {
         <Skeleton className="h-40 w-full" />
       </div>
     )
+  }
+
+  if(user === undefined){
+    router.replace('/')
+    return null
   }
 
   if (error) {

@@ -30,6 +30,7 @@ interface ChatMessage {
   userId: string
   username: string
   body: string
+  stickerId: string
   createdAt: number
 }
 
@@ -103,6 +104,17 @@ export default function DrawPage() {
     return () => unsub()
   }, [])
 
+  // FIX: redirect on both "not yet resolved" (undefined, only transiently)
+  // AND "resolved to logged out" (null). Previously only `undefined` was
+  // checked, and even then the redirect had no `return`, so the rest of
+  // the component kept rendering with a nullish `user` and could crash
+  // (e.g. `user.uid` in startDrawing) or navigate mid-render.
+  React.useEffect(() => {
+    if (user === null) {
+      router.replace("/")
+    }
+  }, [user, router])
+
   const drawCanvasBackground = React.useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -164,12 +176,17 @@ export default function DrawPage() {
         socket.on("draw:stroke", handleIncomingStroke)
         socket.on("chat:message", handleIncomingMessage)
         socket.on("draw:cursor", (c: CursorPayload) => {
-          console.log("cursor payload received on client:", c)
-          setCursors((prev) => {
-            const next = { ...prev, [c.userId]: { x: c.x, y: c.y, color: c.color, username: c.username, stickerId: c.stickerId, lastSeen: Date.now() } }
-            // console.log("cursors state now:", next)
-            return next
-          })
+          setCursors((prev) => ({
+            ...prev,
+            [c.userId]: {
+              x: c.x,
+              y: c.y,
+              color: c.color,
+              username: c.username,
+              stickerId: c.stickerId,
+              lastSeen: Date.now(),
+            },
+          }))
         })
 
         socket.on("lobby:started", (payload: { startedAt?: number }) => {
@@ -186,6 +203,16 @@ export default function DrawPage() {
           setParticipants((prev) =>
             prev.filter((item) => item.userId !== userId)
           )
+          // FIX: a departed participant's cursor was left behind forever
+          // (only pruned by the 5s staleness check, which is fine, but
+          // removing it immediately avoids a ghost cursor lingering for
+          // up to 5s after someone leaves).
+          setCursors((prev) => {
+            if (!(userId in prev)) return prev
+            const next = { ...prev }
+            delete next[userId]
+            return next
+          })
         })
         socket.on("lobby:finished", () => {
           router.push(`/gallery?focus=${lobbyId}`)
@@ -293,6 +320,9 @@ export default function DrawPage() {
   }, [])
 
   // keep canvas bounding rect in state (avoid reading ref during render)
+  // FIX: depends on `loading` so it re-runs once the real <canvas> mounts
+  // (previously ran once with `[]` while the skeleton was showing, before
+  // canvasRef had anything attached, and never fired again).
   React.useLayoutEffect(() => {
     const el = canvasRef.current
     if (!el) return
@@ -325,6 +355,31 @@ export default function DrawPage() {
 
   const lastEmitRef = React.useRef(0)
 
+  // FIX: consolidated cursor-emit into a single throttled function.
+  // Previously both continueDrawing() and handlePointerMove() independently
+  // emitted "draw:cursor" on every pointermove using the *same* lastEmitRef
+  // with two different thresholds (50ms / 75ms). Since continueDrawing ran
+  // first and updated the shared ref, handlePointerMove's emit was almost
+  // always throttled out while actively drawing, and the two call sites
+  // could race/step on each other's timing in subtle ways. One function,
+  // one threshold.
+  const emitCursor = React.useCallback(
+    (point: { x: number; y: number }) => {
+      if (!socketRef.current) return
+      const nowTs = Date.now()
+      if (nowTs - lastEmitRef.current > 50) {
+        socketRef.current.emit("draw:cursor", {
+          lobbyId,
+          x: point.x,
+          y: point.y,
+          color,
+        })
+        lastEmitRef.current = nowTs
+      }
+    },
+    [lobbyId, color]
+  )
+
   const continueDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current || !currentStrokeRef.current) return
     const point = getCanvasPoint(event)
@@ -345,17 +400,7 @@ export default function DrawPage() {
 
     currentStrokeRef.current.points.push(point)
     lastPointRef.current = point
-    // send cursor update (throttled)
-    const now = Date.now()
-    if (socketRef.current && now - lastEmitRef.current > 50) {
-      socketRef.current.emit("draw:cursor", {
-        lobbyId,
-        x: point.x,
-        y: point.y,
-        color,
-      })
-      lastEmitRef.current = now
-    }
+    emitCursor(point)
   }
 
   const stopDrawing = () => {
@@ -382,18 +427,8 @@ export default function DrawPage() {
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const point = getCanvasPoint(event)
-    if (!point || !socketRef.current) return
-    const now = Date.now()
-    const last = lastEmitRef.current
-    if (now - last > 75) {
-      socketRef.current.emit("draw:cursor", {
-        lobbyId,
-        x: point.x,
-        y: point.y,
-        color,
-      })
-      lastEmitRef.current = now
-    }
+    if (!point) return
+    emitCursor(point)
   }
 
   const handleSendMessage = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -407,7 +442,10 @@ export default function DrawPage() {
     setIsSending(false)
   }
 
-  if (user === undefined || loading) {
+  // FIX: also treat `user === null` (resolved logged-out) as a loading/
+  // redirect state rather than falling through to the full render, which
+  // previously happened because the old check only tested `undefined`.
+  if (loading || user === undefined || user === null) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-12">
         <div className="mb-4 h-10 w-64 rounded-lg bg-muted" />
@@ -504,39 +542,41 @@ export default function DrawPage() {
               onPointerCancel={stopDrawing}
             />
             {/* Cursors overlay */}
-            {Object.entries(cursors).map(([id, c]) => {
-              // hide stale cursors using stable `now` state
-              if (now - c.lastSeen > 5000) return null
-              const rect = canvasRect
-             console.log("canvasRect:", canvasRect, "cursors:", cursors)
-              const left = rect ? (c.x / CANVAS_WIDTH) * rect.width : 0
-              const top = rect ? (c.y / CANVAS_HEIGHT) * rect.height : 0
-              return (
-                <div
-                  key={id}
-                  style={{
-                    left: `${left}px`,
-                    top: `${top}px`,
-                    transform: "translate(-50%, -120%)",
-                  }}
-                  className="pointer-events-none absolute z-50"
-                >
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={stickerImageUrl(c.stickerId)}
-                      alt="sticker"
-                      className="h-6 w-6 rounded-full"
-                    />
-                    <div
-                      className={`rounded-full px-2 py-1 text-xs font-medium`}
-                      style={{ background: c.color, color: "#fff" }}
-                    >
-                      {c.username}
+            {/* FIX: guard on canvasRect so cursors don't flash at (0,0)
+                before the rect has been measured. */}
+            {canvasRect &&
+              Object.entries(cursors).map(([id, c]) => {
+                // hide stale cursors using stable `now` state
+                if (now - c.lastSeen > 5000) return null
+                const rect = canvasRect
+                const left = (c.x / CANVAS_WIDTH) * rect.width
+                const top = (c.y / CANVAS_HEIGHT) * rect.height
+                return (
+                  <div
+                    key={id}
+                    style={{
+                      left: `${left}px`,
+                      top: `${top}px`,
+                      transform: "translate(-50%, -120%)",
+                    }}
+                    className="pointer-events-none absolute z-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={stickerImageUrl(c.stickerId)}
+                        alt="sticker"
+                        className="h-6 w-6 rounded-full"
+                      />
+                      <div
+                        className={`rounded-full px-2 py-1 text-xs font-medium`}
+                        style={{ background: c.color, color: "#fff" }}
+                      >
+                        {c.username}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
           </div>
         </div>
 
@@ -587,7 +627,7 @@ export default function DrawPage() {
                     >
                       <Avatar className="h-8 w-8">
                         <AvatarImage
-                          src={stickerImageUrl(messageItem.userId)}
+                          src={stickerImageUrl(messageItem.stickerId)}
                         />
                         <AvatarFallback>
                           {messageItem.username.charAt(0).toUpperCase()}

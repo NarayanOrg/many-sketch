@@ -158,6 +158,10 @@ io.on("connection", (socket: AuthedSocket) => {
         });
         if (error) throw error;
 
+        // roomManager.create's input type is
+        // Omit<LobbyState, "participants" | "pendingStrokeInserts" | "startedAt" | "strokes">
+        // — it deliberately excludes those four fields and initializes
+        // them internally, so they must NOT be passed here.
         roomManager.create({
           id: lobbyId,
           name: payload.name,
@@ -325,7 +329,6 @@ io.on("connection", (socket: AuthedSocket) => {
     "draw:cursor",
     (payload: { lobbyId: string; x: number; y: number; color: string }) => {
       const room = roomManager.get(payload.lobbyId);
-      // console.log("cursor from", uid, "room status:", room?.status);
       if (!room || room.status !== "active") return;
       if (!room.participants.has(uid)) return;
 
@@ -352,13 +355,13 @@ io.on("connection", (socket: AuthedSocket) => {
     const body = payload.body.slice(0, 500).trim();
     if (!body) return;
 
-    const message: ChatMessage = { userId: uid, username, body, createdAt: Date.now() };
+    const message: ChatMessage = { userId: uid, username, body, stickerId, createdAt: Date.now() };
 
     io.to(payload.lobbyId).emit("chat:message", message);
 
     supabase
       .from("chat_messages")
-      .insert({ lobby_id: payload.lobbyId, user_id: uid, body })
+      .insert({ lobby_id: payload.lobbyId, user_id: uid, body, sticker_id: stickerId })
       .then(({ error }) => {
         if (error) console.error("Failed to persist chat message", error);
       });
@@ -367,8 +370,17 @@ io.on("connection", (socket: AuthedSocket) => {
   // ----------------------------------------------------------------
   // Disconnect
   // ----------------------------------------------------------------
+  // FIX: this previously iterated roomManager.listActive(), which (given
+  // its name, mirrored by listWaiting()) almost certainly returns only
+  // rooms with status === "active". That made `wasWaiting` permanently
+  // false inside the loop, so a participant who left during the waiting
+  // phase was NEVER removed from the room, never deleted from
+  // `lobby_participants`, and the waiting-lobby list shown to other users
+  // (broadcastWaitingLobbies) never reflected their departure — a ghost
+  // seat that's never freed. We now iterate both waiting and active rooms.
   socket.on("disconnect", () => {
-    for (const room of roomManager.listActive()) {
+    const roomsToCheck = [...roomManager.listWaiting(), ...roomManager.listActive()];
+    for (const room of roomsToCheck) {
       const wasWaiting = room.status === "waiting"
       if (room.participants.has(uid)) {
         roomManager.removeParticipantBySocket(room.id, socket.id)
