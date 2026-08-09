@@ -8,7 +8,7 @@ import { Skeleton } from "../ui/skeleton"
 import { onAuthStateChanged, signOut, type User } from "firebase/auth"
 import { auth } from "@/firebase/firebase"
 import AuthModule from "../AuthModule"
-import { Search } from "lucide-react"
+import { LineSquiggle, Search } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,18 +47,12 @@ export default function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4">
         <Link
           href="/"
-          className="group flex shrink-0 items-center gap-1.5 text-lg font-medium transition-opacity hover:opacity-80"
+          className="group flex shrink-0 items-center gap-1.5 font-medium transition-opacity hover:opacity-80"
         >
-          <Image
-            src="/icon.png"
-            alt="ManySketch Logo"
-            width={28}
-            height={28}
-            className="inline-block"
-          />
+          <LineSquiggle  size={25}/>
           <span className="flex items-center">
             Many
-            <span className="rounded-md bg-foreground px-1.5 py-0.5 text-background transition-colors group-hover:bg-foreground/90">
+            <span className="rounded-md bg-foreground p-0.5 text-background transition-colors group-hover:bg-foreground/90">
               Sketch
             </span>
           </span>
