@@ -390,13 +390,45 @@ export default function DrawPage() {
     handleIncomingMessage,
   ])
 
+  // FIX: the canvas is a fixed 1200x800 internal resolution but is stretched
+  // to fill a flexible-aspect-ratio container via CSS `object-fit: contain`.
+  // Whenever the container's aspect ratio isn't exactly 1200:800, the
+  // browser letterboxes the canvas (blank bars top/bottom or left/right) —
+  // but `getBoundingClientRect()` still reports the *full element box*,
+  // bars included. Mapping pointer coordinates against that full box
+  // (as the old code did) causes drawing to drift away from the cursor
+  // proportional to how far off-aspect the window is. This computes the
+  // actual visible (letterboxed) drawing rect within the element first,
+  // then maps against that instead.
   const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
+
+    const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT
+    const boxAspect = rect.width / rect.height
+
+    let visibleWidth = rect.width
+    let visibleHeight = rect.height
+    let offsetX = 0
+    let offsetY = 0
+
+    if (boxAspect > canvasAspect) {
+      // box is wider than the canvas — letterboxed left/right
+      visibleWidth = rect.height * canvasAspect
+      offsetX = (rect.width - visibleWidth) / 2
+    } else if (boxAspect < canvasAspect) {
+      // box is taller than the canvas — letterboxed top/bottom
+      visibleHeight = rect.width / canvasAspect
+      offsetY = (rect.height - visibleHeight) / 2
+    }
+
+    const xInBox = event.clientX - rect.left - offsetX
+    const yInBox = event.clientY - rect.top - offsetY
+
     return {
-      x: ((event.clientX - rect.left) / rect.width) * CANVAS_WIDTH,
-      y: ((event.clientY - rect.top) / rect.height) * CANVAS_HEIGHT,
+      x: (xInBox / visibleWidth) * CANVAS_WIDTH,
+      y: (yInBox / visibleHeight) * CANVAS_HEIGHT,
     }
   }
 
@@ -432,6 +464,32 @@ export default function DrawPage() {
       window.removeEventListener("resize", update)
     }
   }, [loading])
+
+  // FIX: same letterboxing correction as getCanvasPoint, but derived from
+  // the already-measured `canvasRect` state (used for the cursor overlay,
+  // which needs to map canvas-space coordinates back to screen pixels —
+  // the exact inverse problem). Keeping both directions in sync so
+  // strokes and cursors never disagree about where the canvas actually is.
+  const visibleCanvasBox = React.useMemo(() => {
+    if (!canvasRect) return null
+    const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT
+    const boxAspect = canvasRect.width / canvasRect.height
+
+    let width = canvasRect.width
+    let height = canvasRect.height
+    let offsetX = 0
+    let offsetY = 0
+
+    if (boxAspect > canvasAspect) {
+      width = canvasRect.height * canvasAspect
+      offsetX = (canvasRect.width - width) / 2
+    } else if (boxAspect < canvasAspect) {
+      height = canvasRect.width / canvasAspect
+      offsetY = (canvasRect.height - height) / 2
+    }
+
+    return { width, height, offsetX, offsetY }
+  }, [canvasRect])
 
   const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isReady || !user) return
@@ -578,11 +636,11 @@ export default function DrawPage() {
   // previously happened because the old check only tested `undefined`.
   if (loading || user === undefined || user === null) {
     return (
-      <div className="flex h-dvh flex-col bg-[#171310] text-white">
-        <div className="h-14 border-b border-white/10 bg-[#1f1a15]" />
+      <div className="flex h-dvh flex-col bg-background text-foreground">
+        <div className="h-14 shrink-0 border-b border-border bg-background" />
         <div className="flex min-h-0 flex-1 gap-3 p-3">
-          <div className="min-w-0 flex-1 animate-pulse rounded-2xl bg-white/5" />
-          <div className="w-[320px] animate-pulse rounded-2xl bg-white/5" />
+          <div className="min-w-0 flex-1 animate-pulse rounded-xl bg-muted" />
+          <div className="w-[320px] shrink-0 animate-pulse rounded-xl bg-muted" />
         </div>
       </div>
     )
@@ -590,8 +648,8 @@ export default function DrawPage() {
 
   if (error) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center bg-[#171310] px-4 text-center text-white">
-        <p className="mb-4 text-white/60">{error}</p>
+      <div className="flex h-dvh flex-col items-center justify-center bg-background px-4 text-center">
+        <p className="mb-4 text-muted-foreground">{error}</p>
         <Button onClick={() => router.push(`/${lobbyId}`)}>
           Back to lobby
         </Button>
@@ -603,23 +661,22 @@ export default function DrawPage() {
   const strokeSizes = [3, 6, 10, 16]
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#171310] text-white">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       {/* Top bar — lobby identity, timer, and brush settings all in one reach zone */}
-      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-white/10 bg-[#1f1a15] px-4">
+      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-background px-4">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 text-white/60 hover:bg-white/10 hover:text-white"
+          className="h-8 w-8 shrink-0"
           onClick={() => router.push(`/${lobbyId}`)}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
         <div className="flex min-w-0 items-center gap-2">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
-          </span>
+          <Badge variant="secondary" className="shrink-0">
+            Live
+          </Badge>
           <h1 className="truncate text-sm font-semibold tracking-tight">
             {lobbyName || "Live draw"}
           </h1>
@@ -628,7 +685,7 @@ export default function DrawPage() {
         {secondsLeft !== null && (
           <div
             className={`shrink-0 rounded-md px-2 py-0.5 font-mono text-sm font-medium tabular-nums ${
-              secondsLeft <= 10 ? "bg-red-500/15 text-red-400" : "bg-white/5 text-white/70"
+              secondsLeft <= 10 ? "text-destructive" : "text-muted-foreground"
             }`}
           >
             {Math.floor(secondsLeft / 60)
@@ -638,7 +695,7 @@ export default function DrawPage() {
           </div>
         )}
 
-        <div className="mx-1 h-6 w-px shrink-0 bg-white/10" />
+        <div className="mx-1 h-6 w-px shrink-0 bg-border" />
 
         {/* Brush settings — inline, compact, always visible */}
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
@@ -649,15 +706,15 @@ export default function DrawPage() {
                 type="button"
                 onClick={() => setColor(swatch)}
                 aria-label={`Use color ${swatch}`}
-                className={`h-6 w-6 shrink-0 rounded-full ring-offset-2 ring-offset-[#1f1a15] transition ${
+                className={`h-6 w-6 shrink-0 rounded-full ring-offset-2 ring-offset-background transition ${
                   color.toLowerCase() === swatch.toLowerCase()
-                    ? "ring-2 ring-orange-500"
-                    : "ring-1 ring-white/15 hover:ring-white/40"
+                    ? "ring-2 ring-primary"
+                    : "ring-1 ring-border hover:ring-muted-foreground"
                 }`}
                 style={{ background: swatch }}
               />
             ))}
-            <label className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full ring-1 ring-white/15 hover:ring-white/40">
+            <label className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full ring-1 ring-border hover:ring-muted-foreground">
               <span
                 className="pointer-events-none absolute inset-0"
                 style={{
@@ -675,7 +732,7 @@ export default function DrawPage() {
             </label>
           </div>
 
-          <div className="mx-0.5 h-5 w-px shrink-0 bg-white/10" />
+          <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />
 
           <div className="flex shrink-0 items-center gap-1.5">
             {strokeSizes.map((size) => (
@@ -685,11 +742,11 @@ export default function DrawPage() {
                 onClick={() => setWidth(size)}
                 aria-label={`Stroke width ${size}px`}
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition ${
-                  width === size ? "bg-white/15" : "hover:bg-white/5"
+                  width === size ? "bg-muted" : "hover:bg-muted/60"
                 }`}
               >
                 <span
-                  className="rounded-full bg-white"
+                  className="rounded-full bg-foreground"
                   style={{ width: Math.min(size, 14), height: Math.min(size, 14) }}
                 />
               </button>
@@ -697,10 +754,7 @@ export default function DrawPage() {
           </div>
         </div>
 
-        <Badge
-          variant="outline"
-          className="shrink-0 border-white/15 bg-white/5 text-white/70"
-        >
+        <Badge variant="outline" className="shrink-0">
           {participants.length} player{participants.length === 1 ? "" : "s"}
         </Badge>
       </header>
@@ -708,33 +762,36 @@ export default function DrawPage() {
       {/* Body — canvas fills the left, chat column fills the right. No page scroll. */}
       <div className="flex min-h-0 flex-1 gap-3 p-3">
         {/* Canvas column */}
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0e0c0a]">
-          <div className="relative h-full w-full overflow-hidden bg-white">
-            <canvas
-              ref={canvasRef}
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
-              className="h-full w-full touch-none bg-white"
-              style={{ objectFit: "contain" }}
-              onPointerDown={startDrawing}
-              onPointerMove={(e) => {
-                continueDrawing(e)
-                handlePointerMove(e)
-              }}
-              onPointerUp={stopDrawing}
-              onPointerLeave={stopDrawing}
-              onPointerCancel={stopDrawing}
-            />
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background">
+          <div className="flex h-full w-full items-center justify-center overflow-hidden">
+            <div
+              className="relative h-full max-h-full w-full max-w-full bg-white"
+              style={{ aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}
+            >
+              <canvas
+                ref={canvasRef}
+                width={CANVAS_WIDTH}
+                height={CANVAS_HEIGHT}
+                className="h-full w-full touch-none bg-white"
+                onPointerDown={startDrawing}
+                onPointerMove={(e) => {
+                  continueDrawing(e)
+                  handlePointerMove(e)
+                }}
+                onPointerUp={stopDrawing}
+                onPointerLeave={stopDrawing}
+                onPointerCancel={stopDrawing}
+              />
             {/* Cursors overlay */}
-            {/* FIX: guard on canvasRect so cursors don't flash at (0,0)
-                before the rect has been measured. */}
-            {canvasRect &&
+            {/* FIX: guard on visibleCanvasBox (not just canvasRect) so
+                cursors are positioned against the actual letterboxed
+                drawing area, matching the stroke coordinate math. */}
+            {visibleCanvasBox &&
               Object.entries(cursors).map(([id, c]) => {
                 // hide stale cursors using stable `now` state
                 if (now - c.lastSeen > 5000) return null
-                const rect = canvasRect
-                const left = (c.x / CANVAS_WIDTH) * rect.width
-                const top = (c.y / CANVAS_HEIGHT) * rect.height
+                const left = visibleCanvasBox.offsetX + (c.x / CANVAS_WIDTH) * visibleCanvasBox.width
+                const top = visibleCanvasBox.offsetY + (c.y / CANVAS_HEIGHT) * visibleCanvasBox.height
                 return (
                   <div
                     key={id}
@@ -745,60 +802,65 @@ export default function DrawPage() {
                     }}
                     className="pointer-events-none absolute z-50"
                   >
-                    <div className="flex items-center gap-1.5 rounded-full bg-black/80 py-1 pl-1 pr-2.5 shadow-lg backdrop-blur-sm">
+                    <div className="flex items-center gap-2">
                       <img
                         src={stickerImageUrl(c.stickerId)}
                         alt="sticker"
-                        className="h-5 w-5 rounded-full"
+                        className="h-6 w-6 rounded-full"
                       />
-                      <span
-                        className="text-xs font-medium"
-                        style={{ color: c.color }}
+                      <div
+                        className="rounded-full px-2 py-1 text-xs font-medium"
+                        style={{ background: c.color, color: "#fff" }}
                       >
                         {c.username}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 )
               })}
+            </div>
           </div>
         </div>
 
         {/* Right column — roster strip + chat, fixed width, own scroll only */}
         <div className="flex w-[320px] shrink-0 flex-col gap-3 overflow-hidden">
           {/* Roster — compact horizontal strip of avatars, not a tall list */}
-          <div className="shrink-0 rounded-2xl border border-white/10 bg-[#1f1a15] p-2.5">
+          <div className="shrink-0 rounded-xl border border-border bg-background p-2.5">
             <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
-              {participants.map((participant) => (
-                <div
-                  key={participant.userId}
-                  className="group relative flex shrink-0 items-center"
-                  title={participant.username}
-                >
-                  <Avatar className="h-8 w-8 ring-2 ring-[#1f1a15]">
-                    <AvatarImage src={stickerImageUrl(participant.stickerId)} />
-                    <AvatarFallback className="bg-white/10 text-xs text-white">
-                      {participant.username.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-              ))}
+              {participants.length === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">No players yet.</p>
+              ) : (
+                participants.map((participant) => (
+                  <div
+                    key={participant.userId}
+                    className="shrink-0"
+                    title={participant.username}
+                  >
+                    <Avatar className="h-8 w-8 ring-2 ring-background">
+                      <AvatarImage src={stickerImageUrl(participant.stickerId)} />
+                      <AvatarFallback className="text-xs">
+                        {participant.username.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
           {/* Chat — fills remaining height, streamer-style rows */}
           {chatEnabled ? (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1f1a15]">
-              <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 py-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/50">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background">
+              <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Chat
                 </p>
-                <span className="text-xs text-white/30">{messages.length}</span>
+                <span className="text-xs text-muted-foreground">{messages.length}</span>
               </div>
 
               <div className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
                 {messages.length === 0 ? (
-                  <p className="pt-4 text-center text-xs text-white/30">
+                  <p className="pt-4 text-center text-xs text-muted-foreground">
                     Say something to your lobby.
                   </p>
                 ) : (
@@ -807,7 +869,7 @@ export default function DrawPage() {
                     return (
                       <div
                         key={`${messageItem.userId}-${messageItem.createdAt}-${index}`}
-                        className="flex items-start gap-1.5 rounded-md px-1.5 py-1 leading-snug hover:bg-white/3"
+                        className="flex items-start gap-1.5 rounded-md px-1.5 py-1 leading-snug hover:bg-muted/50"
                       >
                         <img
                           src={stickerImageUrl(messageItem.stickerId)}
@@ -816,12 +878,12 @@ export default function DrawPage() {
                         />
                         <p className="min-w-0 wrap-break-word text-[13px]">
                           <span
-                            className={`font-semibold ${isMe ? "text-orange-400" : "text-sky-400"}`}
+                            className={`font-semibold ${isMe ? "text-primary" : "text-blue-600"}`}
                           >
                             {messageItem.username}
                           </span>
-                          <span className="text-white/40">{"  "}</span>
-                          <span className="text-white/85">{messageItem.body}</span>
+                          <span className="text-muted-foreground">{"  "}</span>
+                          <span className="text-foreground/90">{messageItem.body}</span>
                         </p>
                       </div>
                     )
@@ -831,7 +893,7 @@ export default function DrawPage() {
 
               <form
                 onSubmit={handleSendMessage}
-                className="flex shrink-0 items-center gap-2 border-t border-white/10 p-2.5"
+                className="flex shrink-0 items-center gap-2 border-t border-border p-2.5"
               >
                 <Input
                   id="chat-input"
@@ -839,12 +901,12 @@ export default function DrawPage() {
                   onChange={(event) => setMessage(event.target.value)}
                   placeholder="Send a message"
                   maxLength={500}
-                  className="h-8 border-white/10 bg-white/5 text-[13px] text-white placeholder:text-white/30 focus-visible:ring-orange-500"
+                  className="h-8 text-[13px]"
                 />
                 <Button
                   type="submit"
                   size="icon"
-                  className="h-8 w-8 shrink-0 bg-orange-600 hover:bg-orange-500"
+                  className="h-8 w-8 shrink-0"
                   disabled={!message.trim() || isSending}
                 >
                   {isSending ? (
@@ -856,7 +918,7 @@ export default function DrawPage() {
               </form>
             </div>
           ) : (
-            <div className="flex flex-1 items-center justify-center rounded-2xl border border-white/10 bg-[#1f1a15] p-4 text-center text-xs text-white/40">
+            <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-background p-4 text-center text-xs text-muted-foreground">
               Chat is disabled for this lobby.
             </div>
           )}

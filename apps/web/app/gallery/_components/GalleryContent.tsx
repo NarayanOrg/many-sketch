@@ -120,7 +120,7 @@ export function GalleryContent() {
                 <GalleryActions
                   title={item.title || "drawing"}
                   imageUrl={item.thumbnailUrl}
-                  shareUrl={origin ? `${origin}/lobbies/${item.id}/thumbnail` : ""}
+                  shareUrl={`https://many-sketch-io.onrender.com/lobbies/${item.id}/thumbnail`}
                 />
               </div>
             </div>

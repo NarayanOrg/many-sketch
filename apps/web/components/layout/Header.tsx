@@ -14,13 +14,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import CreateLobbyModule from "../CreateLobbyModule"
+import Image from "next/image"
 
 export default function Header() {
   const router = useRouter()
-  // undefined = still resolving, null = signed out, User = signed in
   const [user, setUser] = React.useState<User | null | undefined>(undefined)
   const [query, setQuery] = React.useState("")
 
@@ -42,12 +43,24 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/80 py-3 backdrop-blur-sm">
-      <div className="flex items-center justify-between gap-4">
-        <Link href="/" className="shrink-0 text-lg font-medium">
-          Many
-          <span className="rounded-md bg-foreground p-1 text-background">
-            Sketch
+    <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 py-3 backdrop-blur-md supports-backdrop-filter:bg-background/60">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4">
+        <Link
+          href="/"
+          className="group flex shrink-0 items-center gap-1.5 text-lg font-medium transition-opacity hover:opacity-80"
+        >
+          <Image
+            src="/icon.png"
+            alt="ManySketch Logo"
+            width={28}
+            height={28}
+            className="inline-block"
+          />
+          <span className="flex items-center">
+            Many
+            <span className="rounded-md bg-foreground px-1.5 py-0.5 text-background transition-colors group-hover:bg-foreground/90">
+              Sketch
+            </span>
           </span>
         </Link>
 
@@ -60,13 +73,16 @@ export default function Header() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find a lobby by name or code"
-            className="pl-9"
+            className="pl-9 transition-shadow focus-visible:ring-2 focus-visible:ring-offset-0"
           />
         </form>
 
         <div className="flex items-center gap-2">
           <Link href="/gallery">
-            <Button variant="outline" className="hidden sm:inline-flex">
+            <Button
+              variant="outline"
+              className="hidden transition-colors sm:inline-flex"
+            >
               Gallery
             </Button>
           </Link>
@@ -77,8 +93,8 @@ export default function Header() {
             <>
               <CreateLobbyModule />
               <DropdownMenu>
-                <DropdownMenuTrigger className="rounded-full">
-                  <Avatar className="h-9 w-9">
+                <DropdownMenuTrigger className="rounded-full outline-none ring-offset-background transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <Avatar className="h-9 w-9 cursor-pointer ring-1 ring-border transition-all hover:ring-2 hover:ring-foreground/20">
                     <AvatarImage src={user.photoURL ?? undefined} />
                     <AvatarFallback>
                       {(user.displayName ?? user.email ?? "?")
@@ -87,18 +103,17 @@ export default function Header() {
                     </AvatarFallback>
                   </Avatar>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem className="cursor-pointer">
                     <Link href="/profile">Profile</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link href="/gallery" className="sm:hidden">
-                      Gallery
-                    </Link>
+                  <DropdownMenuItem className="cursor-pointer sm:hidden">
+                    <Link href="/gallery">Gallery</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={handleSignOut}
-                    className="text-destructive focus:text-destructive"
+                    className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
                   >
                     Sign out
                   </DropdownMenuItem>
