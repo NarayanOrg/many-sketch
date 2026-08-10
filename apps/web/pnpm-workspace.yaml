@@ -1,8 +1,0 @@
-packages: []
-
-allowBuilds:
-  sharp: true
-  unrs-resolver: true
-  msw: false
-  '@firebase/util': true
-  protobufjs: true
